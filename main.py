@@ -1,23 +1,33 @@
 from fastapi import FastAPI, Request # FastAPIとリクエストモジュールのインポート
-from fastapi.responses import StreamingResponse # StreamingResponseのインポート
+from fastapi.responses import StreamingResponse, HTMLResponse # StreamingResponseとHTMLResponseのインポート
 import matplotlib.pyplot as plt # Matplotlibのインポート
 import io # バイナリストリームを扱うためのモジュールのインポート
+import base64 # base64
 
 app = FastAPI() # FastAPIアプリケーションの作成
 
-@app.get("/plot") # GETリクエストを受け取るルートの定義
-async def plot(request: Request):
-    x = request.query_params.get('x', '1,2,3,4,5') # GETパラメータ'x'の取得、デフォルト値は'1,2,3,4,5'
-    y = request.query_params.get('y', '1,4,9,16,25') # GETパラメータ'y'の取得、デフォルト値は'1,4,9,16,25'
-    x = [int(i) for i in x.split(',')] # 'x'パラメータを整数リストに変換
-    y = [int(i) for i in y.split(',')] # 'y'パラメータを整数リストに変換
+@app.get("/plots", response_class=HTMLResponse) # GETリクエストを受け取り、HTMLレスポンスを返すルートの定義
+async def plots(request: Request):
+    num_plots = int(request.query_params.get('num', '3')) # GETパラメータ'num'の取得、デフォルト値は'3'
+    images = [] # 画像データを格納するリスト
 
-    plt.figure() # 新しい図の作成
-    plt.plot(x, y) # xとyのプロット
-    plt.title("Sample Plot") # グラフのタイトル設定
+    for i in range(num_plots): # 指定された数のプロットを作成
+        x = [1, 2, 3, 4, 5] # x軸のデータ
+        y = [(j + i) ** 2 for j in x] # y軸のデータ
 
-    img = io.BytesIO() # バイナリストリームの作成
-    plt.savefig(img, format='png') # バイナリストリームに画像を保存
-    img.seek(0) # ストリームのポインタを先頭に移動
+        plt.figure() # 新しい図の作成
+        plt.plot(x, y) # xとyのプロット
+        plt.title(f"Sample Plot {i + 1}") # グラフのタイトル設定
 
-    return StreamingResponse(img, media_type='image/png') # クライエントに画像を返す
+        img = io.BytesIO() # バイナリストリームの作成
+        plt.savefig(img, format='png') # バイナリストリームに画像を保存
+        img.seek(0) # ストリームのポインタを先頭に移動
+        images.append(img.getvalue()) # 画像データをリストに追加
+
+    html_content = "<html><body>" # HTMLの開始タグ
+    for i, img in enumerate(images): # 各画像に対して
+        img_base64 = base64.b64encode(img).decode('utf-8') # 画像をBase64エンコード
+        html_content += f'<h2>Plot {i + 1}</h2><img src="data:image/png;base64,{img_base64}"/><br/>' # 画像をHTMLに埋め込む
+    html_content += "</body></html>" # HTMLの終了タグ
+
+    return HTMLResponse(content=html_content) # クライエントにHTMLレスポンスを返す
