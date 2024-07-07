@@ -1,31 +1,34 @@
-import matplotlib.pyplot as plt # Matplotlibのインポート
-import io # バイナリストリームを扱うためのモジュールのインポート
 import base64 # base64
+
+import layer3 as l3
 
 def get_params(request):
     num_plots = int(request.query_params.get('num', '3'))
     return num_plots
 
-def create_images(num_plots):
+def create_images(params):
+
     images = [] # 画像データを格納するリスト
-    for i in range(num_plots): # 指定された数のプロットを作成
-        x = [1, 2, 3, 4, 5] # x軸のデータ
-        y = [(j + i) ** 2 for j in x] # y軸のデータ
 
-        plt.figure() # 新しい図の作成
-        plt.plot(x, y) # xとyのプロット
-        plt.title(f"Sample Plot {i + 1}") # グラフのタイトル設定
+    tickers = ["SOXL", "TECL", "SPXL", "COST", "LLY", "NVO", "ODFL", "PGR"] # 対象ティッカー
+    df = l3.get_data(tickers) # ダウンロードする
 
-        img = io.BytesIO() # バイナリストリームの作成
-        plt.savefig(img, format='png') # バイナリストリームに画像を保存
-        img.seek(0) # ストリームのポインタを先頭に移動
-        images.append(img.getvalue()) # 画像データをリストに追加
+    # 各tickerごとに処理
+    for ticker in df.columns:
+        dft = df.loc[:, [ticker]] # 対象列をdfとして抜き出す
+        dft = l3.format_data(dft) # データの無い行を削除する、days行を追加
+        dftf = l3.fit_band(dft) # バンドをフィットさせる
+        image = l3.plot_log_chart(dftf) # plotして画像データを取得
+        images.append(image) # imagesリストに追加
+
     return images
+
 
 def make_html_content(images):
     html_content = "<html><body>" # HTMLの開始タグ
     for i, img in enumerate(images): # 各画像に対して
-        img_base64 = base64.b64encode(img).decode('utf-8') # 画像をBase64エンコード
+        img_base64 = base64.b64encode(img).decode("utf-8") # 画像をBase64エンコード
         html_content += f'<h2>Plot {i + 1}</h2><img src="data:image/png;base64,{img_base64}"/><br/>' # 画像をHTMLに埋め込む
     html_content += "</body></html>" # HTMLの終了タグ
     return html_content
+
